@@ -289,7 +289,7 @@ function processQR(qrData) {
             tempSetMaster = matched;
             playBeep("ok");
             document.getElementById("status-display").innerText = "変更: 2/2";
-            document.getElementById("target-info").innerText = `[${matched.name}]\n次に新しい【仕掛品】かんばんを\nスキャンしてください`;
+            document.getElementById("target-info").innerText = `[${matched.name}]\n【仕掛品】かんばんを\nスキャンしてください`;
             
             setTimeout(() => { isProcessing = false; masterSetMode = 2; }, 1000);
         } else {
@@ -375,7 +375,7 @@ function startMasterSetMode() {
     document.body.className = "wait";
     document.getElementById("status-display").style.fontSize = "5rem";
     document.getElementById("status-display").innerText = "変更: 1/2";
-    document.getElementById("target-info").innerText = "次に生産する【完成品】かんばんを\nカメラに映してください";
+    document.getElementById("target-info").innerText = "【完成品】かんばんを\nカメラに映してください";
 }
 
 function updateStatusDisplay(statusText, infoText) {
