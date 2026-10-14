@@ -56,8 +56,7 @@
 <body>
     <div id="lock-overlay">
         <h1>NG 発生</h1>
-        <!-- ★理由を動的に表示するエリアに変更 -->
-        <p id="lock-reason">異品混入の可能性があります！<br>管理者のパスワードが必要です。</p>
+        <p>異品混入の可能性があります！<br>管理者のパスワードが必要です。</p>
         <input type="number" id="pw-input" placeholder="****" inputmode="numeric">
         <button class="btn-unlock" onclick="unlock()">解除</button>
     </div>
@@ -171,11 +170,11 @@ let isProcessing = false;
 let lastSeenQR = "";
 let seenCount = 0;
 
-// ★最後に読み取ったかんばんの種類（"fin" または "wip"）を記憶
-let lastScannedType = null; 
-
+// 0 = 通常, 1 = マスター変更(完成品待ち), 2 = マスター変更(仕掛品待ち)
 let masterSetMode = 0;
 let tempSetMaster = null;
+
+// 0 = 通常, 1 = 登録(完成品待ち), 2 = 登録(仕掛品待ち)
 let registerMode = 0;
 let tempRegFinishedCode = "";
 
@@ -248,30 +247,6 @@ function tick() {
     requestAnimationFrame(tick);
 }
 
-// === エラー発生時の共通処理 ===
-function triggerNG(title, message, logText) {
-    playBeep("ng");
-    isLocked = true;
-    document.body.className = "ng";
-    document.getElementById("status-display").style.fontSize = "4.5rem";
-    document.getElementById("status-display").innerText = title;
-    saveLog(logText);
-
-    sendNotification(`【NG発生】${message.replace(/\n/g, " ")}`);
-
-    const deviceName = localStorage.getItem("kb_v20_device_name") || "未設定端末";
-    const shortcutMsg = `【${deviceName}】\n【NG発生】${message.replace(/\n/g, " ")}\n(生産中: ${activeMaster.name})`;
-    const shortcutName = encodeURIComponent("QR通知");
-
-    setTimeout(() => { window.location.href = `shortcuts://run-shortcut?name=${shortcutName}&input=text&text=${encodeURIComponent(shortcutMsg)}`; }, 1500);
-
-    setTimeout(() => {
-        document.getElementById("lock-reason").innerHTML = `${message.replace(/\n/g, "<br>")}<br><br>管理者のパスワードが必要です。`;
-        document.getElementById("lock-overlay").style.display = "flex";
-        document.getElementById("pw-input").focus();
-    }, 500);
-}
-
 function processQR(qrData) {
     if (registerMode === 1) {
         isProcessing = true;
@@ -318,6 +293,7 @@ function processQR(qrData) {
             
             setTimeout(() => { isProcessing = false; masterSetMode = 2; }, 1000);
         } else {
+            playBeep("ng");
             showError("未登録エラー", "この完成品かんばんは登録されていません。\n先にマスター登録を行ってください。");
         }
         return;
@@ -326,7 +302,6 @@ function processQR(qrData) {
         isProcessing = true;
         if (qrData === tempSetMaster.wipCode) {
             activeMaster = tempSetMaster;
-            lastScannedType = null; // ★マスター変更完了で順序リセット
             playBeep("ok");
             document.body.className = "ok";
             document.getElementById("status-display").style.fontSize = "5rem";
@@ -338,53 +313,50 @@ function processQR(qrData) {
                 resetToReady();
             }, 1500);
         } else {
+            playBeep("ng");
             showError("不一致エラー", `マスター変更失敗！\n\n読み取った仕掛品かんばんは、完成品「${tempSetMaster.name}」のペアではありません！`);
         }
         return;
     }
 
-    // ==========================================
-    // 【通常モード】完成品と仕掛品の順番チェック機能
-    // ==========================================
     if (activeMaster && document.getElementById("mgmt-modal").style.display !== "flex") {
         isProcessing = true;
         
         if (qrData === activeMaster.finishedCode) {
-            // 完成品が読まれた場合、前回も完成品だったかチェック
-            if (lastScannedType === "fin") {
-                triggerNG("順序エラー", "【完成品】かんばんが\n連続でスキャンされました！", "NG (順序エラー:完成品連続)");
-            } else {
-                lastScannedType = "fin";
-                playBeep("ok");
-                finishedCount++;
-                updateStatusDisplay("OK", "完成品かんばん OK");
-                saveLog("OK (完成品)");
-                updateCounts();
-            }
+            playBeep("ok");
+            finishedCount++;
+            updateStatusDisplay("OK", "完成品かんばん OK");
+            saveLog("OK (完成品)");
+            updateCounts();
         } 
         else if (qrData === activeMaster.wipCode) {
-            // 仕掛品が読まれた場合、前回も仕掛品だったかチェック
-            if (lastScannedType === "wip") {
-                triggerNG("順序エラー", "【仕掛品】かんばんが\n連続でスキャンされました！", "NG (順序エラー:仕掛品連続)");
-            } else {
-                lastScannedType = "wip";
-                playBeep("ok");
-                wipCount++;
-                updateStatusDisplay("OK", "仕掛品かんばん OK");
-                saveLog("OK (仕掛品)");
-                updateCounts();
-            }
+            playBeep("ok");
+            wipCount++;
+            updateStatusDisplay("OK", "仕掛品かんばん OK");
+            saveLog("OK (仕掛品)");
+            updateCounts();
         } 
         else {
-            // どちらでもないかんばん（異品）が読まれた場合
-            triggerNG("製品不一致", "登録と異なるかんばん（異品）が\nスキャンされました！", "NG (異品混入)");
+            playBeep("ng");
+            isLocked = true;
+            document.body.className = "ng";
+            document.getElementById("status-display").innerText = "NG";
+            saveLog("NG (異品混入)");
+            
+            sendNotification("【NG発生】かんばん照合で異品混入を検知しました");
+            const deviceName = localStorage.getItem("kb_v20_device_name") || "未設定端末";
+            const shortcutMsg = `【${deviceName}】\n【NG発生】かんばん照合で異品混入を検知しました\n(生産中: ${activeMaster.name})`;
+            const shortcutName = encodeURIComponent("QR通知");
+            
+            setTimeout(() => { window.location.href = `shortcuts://run-shortcut?name=${shortcutName}&input=text&text=${encodeURIComponent(shortcutMsg)}`; }, 1500);
+            setTimeout(() => { document.getElementById("lock-overlay").style.display = "flex"; document.getElementById("pw-input").focus(); }, 500);
         }
     }
 }
 
 function startRegisterMode() {
     if (isLocked) return;
-    document.getElementById("mgmt-modal").style.display = "none"; 
+    document.getElementById("mgmt-modal").style.display = "none"; // モーダルを閉じる
     registerMode = 1;
     masterSetMode = 0;
     
@@ -418,14 +390,15 @@ function updateStatusDisplay(statusText, infoText) {
         document.getElementById("status-display").innerText = "WAIT";
         
         setTimeout(() => {
-            // 待機時間が終わったら、UIをリセットして次の指示を表示
-            resetToReady();
+            isInterval = false;
+            document.body.className = "";
+            document.getElementById("status-display").innerText = "READY";
+            document.getElementById("target-info").innerText = activeMaster ? activeMaster.name : "未選択";
         }, SCAN_INTERVAL_MS); 
     }, 1200);
 }
 
 function showError(title, message) {
-    playBeep("ng");
     document.body.className = "ng";
     document.getElementById("status-display").style.fontSize = "5rem";
     document.getElementById("status-display").innerText = title;
@@ -447,21 +420,7 @@ function resetToReady() {
     document.body.className = ""; 
     document.getElementById("status-display").style.fontSize = "7rem";
     document.getElementById("status-display").innerText = "READY";
-    
-    // ★現在の状況に応じて、次にスキャンすべきかんばんを画面に表示する
-    if (activeMaster) {
-        let nextText = "";
-        if (lastScannedType === "fin") {
-            nextText = "<br><span style='font-size:2.5rem; color:#ffeb3b;'>▶ 次は【仕掛品】を待機中</span>";
-        } else if (lastScannedType === "wip") {
-            nextText = "<br><span style='font-size:2.5rem; color:#ffeb3b;'>▶ 次は【完成品】を待機中</span>";
-        } else {
-            nextText = "<br><span style='font-size:2rem; color:#ccc;'>▶ 最初はどちらからスキャンしてもOK</span>";
-        }
-        document.getElementById("target-info").innerHTML = activeMaster.name + nextText;
-    } else {
-        document.getElementById("target-info").innerText = "未選択";
-    }
+    document.getElementById("target-info").innerText = activeMaster ? activeMaster.name : "未選択";
 }
 
 function updateCounts() {
@@ -563,8 +522,8 @@ function confirmFinish() {
     if (isLocked) return;
     if (confirm("生産を終了しますか？\n（かんばん照合枚数もリセットされます）")) {
         activeMaster = null; isInterval = false; masterSetMode = 0; tempSetMaster = null; registerMode = 0;
-        lastScannedType = null; // ★生産終了で順序リセット
-        document.body.className = ""; document.getElementById("status-display").innerText = "READY"; resetCount(); resetToReady();
+        document.getElementById("target-info").innerText = "未選択";
+        document.body.className = ""; document.getElementById("status-display").innerText = "READY"; resetCount();
     }
 }
 
