@@ -94,22 +94,27 @@
 
     <div class="log-display-area" id="recent-logs"></div>
 
+    <!-- ★元の4つボタンのレイアウトに復元 -->
     <div class="main-panel">
         <div class="btn-group">
-            <button class="btn-main" onclick="startRegisterMode()" style="background: #28a745; color: white;">⚙️ ペア新規登録</button>
-            <button class="btn-sub" onclick="toggleModal('mgmt-modal')" style="background: #6c757d; color: white;">📋 マスター一覧</button>
+            <button class="btn-main" onclick="toggleModal('mgmt-modal')" style="background: #007bff; color: white;">⚙️ マスター登録</button>
+            <button class="btn-sub" onclick="toggleModal('log-modal')" style="background: #6c757d; color: white;">📊 照合履歴</button>
             <button class="btn-main" onclick="triggerIphoneShortcut('管理者を呼ぶ')" style="background: #ffc107; color: black;">🔔 管理者を呼ぶ</button>
-            <button class="btn-sub" onclick="toggleModal('log-modal')" style="background: #17a2b8; color: white;">📊 履歴・出力</button>
+            <button class="btn-sub" onclick="confirmFinish()" style="background: #b40000; color: white;">■ 生産終了</button>
         </div>
     </div>
 
     <!-- マスター一覧・設定モーダル -->
     <div id="mgmt-modal" class="modal">
         <div class="modal-content">
-            <h2>登録済みマスター一覧</h2>
-            <button class="btn-sub" style="width:100%; margin-bottom:10px; padding:15px; border:2px solid #007bff; background:#fff; color:#007bff; font-weight:bold;" onclick="setDeviceName()">📱 この端末の設置場所を設定</button>
-            <button class="btn-sub" style="width:100%; margin-bottom:20px; padding:15px; border:2px solid #28a745; background:#fff; color:#28a745; font-weight:bold;" onclick="setDevicePassword()">🔑 解除パスワードを変更</button>
+            <h2>マスター登録・詳細設定</h2>
+            <button class="btn-sub" style="width:100%; margin-bottom:10px; padding:15px; border:2px solid #007bff; background:#fff; color:#007bff; font-weight:bold;" onclick="setDeviceName()">📱 この端末の設置場所を設定する</button>
+            <button class="btn-sub" style="width:100%; margin-bottom:20px; padding:15px; border:2px solid #28a745; background:#fff; color:#28a745; font-weight:bold;" onclick="setDevicePassword()">🔑 解除パスワードを変更する</button>
 
+            <div style="padding:15px;background:#eee;border-radius:15px;text-align:center;margin-bottom:20px;">
+                <p style="font-weight:bold; color:#333; margin-top:0;">新しい完成品と仕掛品のペアを登録します</p>
+                <button class="btn-main" style="width:100%; padding:20px; background:#28a745; color: #fff; font-weight: bold; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);" onclick="startRegisterMode()">▶️ ペア新規登録を開始</button>
+            </div>
             <div id="edit-list"></div>
         </div>
         <div style="padding:20px; border-top:1px solid #ddd;">
@@ -140,10 +145,9 @@
     </div>
 
 <script>
-// ★データ構造が変わるため、V20として保存領域を新しくします
 function getDevicePassword() { return localStorage.getItem("kb_v20_password") || "8181"; }
 
-const SCAN_INTERVAL_MS = 2500; // 連続読み取り防止の待機時間
+const SCAN_INTERVAL_MS = 2500;
 const ANALYSIS_INTERVAL = 200;
 
 const video = document.createElement("video");
@@ -167,7 +171,6 @@ let isProcessing = false;
 let lastSeenQR = "";
 let seenCount = 0;
 
-// === 状態管理 ===
 // 0 = 通常, 1 = 段替え(完成品待ち), 2 = 段替え(仕掛品待ち)
 let masterSetMode = 0;
 let tempSetMaster = null;
@@ -235,7 +238,6 @@ function tick() {
             if (code && code.data.trim() !== "") {
                 if (code.data === lastSeenQR) { seenCount++; } else { lastSeenQR = code.data; seenCount = 1; }
                 
-                // 誤認識防止のため2回連続で同じQRが見えたら処理する
                 if (seenCount >= 2) {
                     processQR(code.data);
                     seenCount = 0; lastSeenQR = "";
@@ -246,13 +248,8 @@ function tick() {
     requestAnimationFrame(tick);
 }
 
-// 読み取ったQRを、現在のモードに応じて処理する
 function processQR(qrData) {
-    // ================================
-    // 【1】マスター登録モード
-    // ================================
     if (registerMode === 1) {
-        // 完成品をスキャンした
         isProcessing = true;
         tempRegFinishedCode = qrData;
         playBeep("ok");
@@ -260,15 +257,13 @@ function processQR(qrData) {
         document.getElementById("status-display").innerText = "登録: 2/2";
         document.getElementById("target-info").innerText = "次に【仕掛品】かんばんのQRを\nスキャンしてください";
         
-        setTimeout(() => { isProcessing = false; registerMode = 2; }, 1000); // 連続スキャン防止
+        setTimeout(() => { isProcessing = false; registerMode = 2; }, 1000); 
         return;
     } 
     else if (registerMode === 2) {
-        // 仕掛品をスキャンした
         isProcessing = true;
         playBeep("ok");
         
-        // 品番を入力して保存
         setTimeout(() => {
             const name = prompt("完成品・仕掛品のペアをスキャンしました。\nこの製品名（品番）を入力してください:");
             if (name && name.trim() !== "") {
@@ -287,11 +282,7 @@ function processQR(qrData) {
         return;
     }
 
-    // ================================
-    // 【2】段替え（マスター変更）モード
-    // ================================
     if (masterSetMode === 1) {
-        // 新しい完成品かんばんをスキャンした
         isProcessing = true;
         let matched = masters.find(m => m.finishedCode === qrData);
         
@@ -309,10 +300,8 @@ function processQR(qrData) {
         return;
     }
     else if (masterSetMode === 2) {
-        // 新しい仕掛品かんばんをスキャンした
         isProcessing = true;
         if (qrData === tempSetMaster.wipCode) {
-            // ペア完全一致！段替え成功
             activeMaster = tempSetMaster;
             playBeep("ok");
             document.body.className = "ok";
@@ -325,21 +314,16 @@ function processQR(qrData) {
                 resetToReady();
             }, 1500);
         } else {
-            // ペア不一致
             playBeep("ng");
             showError("不一致エラー", `段替え失敗！\n\n読み取った仕掛品かんばんは、完成品「${tempSetMaster.name}」のペアではありません！`);
         }
         return;
     }
 
-    // ================================
-    // 【3】通常モード（生産中のかんばん照合）
-    // ================================
     if (activeMaster && document.getElementById("mgmt-modal").style.display !== "flex") {
         isProcessing = true;
         
         if (qrData === activeMaster.finishedCode) {
-            // 完成品かんばんOK
             playBeep("ok");
             finishedCount++;
             updateStatusDisplay("OK", "完成品かんばん OK");
@@ -347,7 +331,6 @@ function processQR(qrData) {
             updateCounts();
         } 
         else if (qrData === activeMaster.wipCode) {
-            // 仕掛品かんばんOK
             playBeep("ok");
             wipCount++;
             updateStatusDisplay("OK", "仕掛品かんばん OK");
@@ -355,7 +338,6 @@ function processQR(qrData) {
             updateCounts();
         } 
         else {
-            // どちらでもない（異品混入）
             playBeep("ng");
             isLocked = true;
             document.body.className = "ng";
@@ -373,13 +355,9 @@ function processQR(qrData) {
     }
 }
 
-// === 各種モード開始トリガー ===
-
 function startRegisterMode() {
     if (isLocked) return;
-    if (document.getElementById("mgmt-modal").style.display === "flex") {
-        toggleModal("mgmt-modal");
-    }
+    document.getElementById("mgmt-modal").style.display = "none"; // モーダルを閉じる
     registerMode = 1;
     masterSetMode = 0;
     
@@ -401,8 +379,6 @@ function startMasterSetMode() {
     document.getElementById("target-info").innerText = "次に生産する【完成品】かんばんを\nカメラに映してください";
 }
 
-// === UI表示・リセット系 ===
-
 function updateStatusDisplay(statusText, infoText) {
     document.body.className = "ok";
     document.getElementById("status-display").innerText = statusText;
@@ -419,7 +395,7 @@ function updateStatusDisplay(statusText, infoText) {
             document.body.className = "";
             document.getElementById("status-display").innerText = "READY";
             document.getElementById("target-info").innerText = activeMaster ? activeMaster.name : "未選択";
-        }, SCAN_INTERVAL_MS); // 数秒間は連続読み取りを防止する
+        }, SCAN_INTERVAL_MS); 
     }, 1200);
 }
 
@@ -459,8 +435,6 @@ function resetCount() {
     updateCounts();
 }
 
-// === ロック解除・ログ・マスター管理 ===
-
 function unlock() {
     const input = document.getElementById("pw-input").value;
     const currentPassword = getDevicePassword();
@@ -496,7 +470,7 @@ function deleteMaster(i) { if (confirm("このペアを削除しますか？")) 
 function renderRecentLogs() {
     const recent = logs.slice(-3).reverse();
     document.getElementById("recent-logs").innerHTML = recent.map(l => {
-        let color = '#28a745'; // OK系
+        let color = '#28a745'; 
         if (l.result.includes('NG')) color = '#dc3545';
         return `<div class="log-item"><span><b style="color:${color}">[${l.result}]</b> ${l.time}</span><span>${l.master}</span></div>`;
     }).join("") || '<div style="color:#999; text-align:center; padding-top:40px;">履歴なし</div>';
@@ -543,6 +517,15 @@ function exportCSV() {
     logs.forEach(l => { csv += `${l.date},${l.time},${l.master},${l.result}\n`; });
     const b = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csv], { type: "text/csv" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `scan_report.csv`; a.click();
+}
+
+function confirmFinish() {
+    if (isLocked) return;
+    if (confirm("生産を終了しますか？\n（かんばん照合枚数もリセットされます）")) {
+        activeMaster = null; isInterval = false; masterSetMode = 0; tempSetMaster = null; registerMode = 0;
+        document.getElementById("target-info").innerText = "未選択";
+        document.body.className = ""; document.getElementById("status-display").innerText = "READY"; resetCount();
+    }
 }
 
 function triggerIphoneShortcut(statusMessage) {
