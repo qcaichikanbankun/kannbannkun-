@@ -294,7 +294,9 @@ function processQR(qrData) {
             setTimeout(() => { isProcessing = false; masterSetMode = 2; }, 1000);
         } else {
             playBeep("ng");
-            showError("未登録エラー", "この完成品かんばんは登録されていません。\n先にマスター登録を行ってください。");
+            activeMaster = null; // ★追加：エラー時はマスターを未選択に戻す
+            resetCount();        // ★追加：カウントもリセットする
+            showError("未登録エラー", "この完成品かんばんは登録されていません。\n先にマスター登録を行ってください。\n（安全のためマスター未選択状態に戻ります）");
         }
         return;
     }
@@ -314,7 +316,9 @@ function processQR(qrData) {
             }, 1500);
         } else {
             playBeep("ng");
-            showError("不一致エラー", `マスター変更失敗！\n\n読み取った仕掛品かんばんは、完成品「${tempSetMaster.name}」のペアではありません！`);
+            activeMaster = null; // ★追加：不一致エラー時はマスターを未選択に戻す
+            resetCount();        // ★追加：カウントもリセットする
+            showError("不一致エラー", `マスター変更失敗！\n\n読み取った仕掛品かんばんは、完成品「${tempSetMaster.name}」のペアではありません！\n（安全のためマスター未選択状態に戻ります）`);
         }
         return;
     }
@@ -445,7 +449,7 @@ function unlock() {
 
 function saveLog(res) {
     const now = new Date();
-    logs.push({ date: now.toLocaleDateString(), time: now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"}), master: activeMaster.name, result: res });
+    logs.push({ date: now.toLocaleDateString(), time: now.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"}), master: activeMaster ? activeMaster.name : "未選択", result: res });
     localStorage.setItem("kb_v20_logs", JSON.stringify(logs)); renderRecentLogs();
 }
 
